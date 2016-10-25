@@ -1,5 +1,5 @@
 #-------------------------------------------------------------------------------
-# Name:        mapMatching
+# Name:        mapMatcher
 # Purpose:      This python script allows map matching in arcpy using a Hidden Markov model with
 #               probabilities parameterized based on spatial + network distances. Follows the ideas in Newson, Krumm (2009):
 #               Hidden markov Map Matching through noise and sparseness
