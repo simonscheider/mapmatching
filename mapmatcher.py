@@ -127,7 +127,7 @@ def mapMatch(points, segments):
 
 points = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
 segments = ['s1', 's2', 's3', 's4', 's5', 's6']
-#segments = list(reversed(segments))
+segments = list(reversed(segments))
 
 mapMatch(points, segments)
 
