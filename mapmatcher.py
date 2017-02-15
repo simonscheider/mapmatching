@@ -11,11 +11,16 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 from math import exp
+from math import sqrt
 import arcpy
 arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching'
 import networkx as nx
 import numpy as np
 import pandas as pd
+
+
+networkgraph = {}
+segmentendpoints = {}
 
 #A simple map matching algorithm in Python, based on the idea of the Viterbi Algorithm/Hidden Markov Model, but allowing on-the fly distances in a GIS
 
@@ -44,20 +49,6 @@ def getSegmentCandidates(point, segments, maxdist=50):
         #print x, y
         #partnum = 0
         feat = row[1]
-        # Step through each part of the feature
-##        for part in feat:
-##            print "Part %i: " % partnum
-##            part_list = []
-##            for pnt in feat.getPart(partnum):
-##                if pnt:
-##                    # Add to list
-##                    part_list.append([pnt.X, pnt.Y])
-##                else:
-##                    # If pnt is None, this represents an interior ring
-##                    print "Interior Ring:"
-##            partnum += 1
-##            print part_list
-##        print partnum
         #compute the spatial distance
         dist = point.distanceTo(row[1])
         #compute the corresponding probability
@@ -90,21 +81,76 @@ def getNDProbability(dist):
     p = 1 if dist == 0 else  round(1/exp(dist/decayconstant),2)
     return p
 
-def getNetworkTransP(s1, s2, segments):
+def getNetworkTransP(s1, s2, graph, endpoints):
     #Returns transition probability of going from segment s1 to s2, based on network distance of segments
+    dist = 0
+    if s1 == s2:
+        pass
+    else:
+        #test: calculates distances for segments based on list index
+        #points = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
+        #segments = ['s1', 's2', 's3', 's4', 's5', 's6']
+        #get the graph edges for segment
 
-    #test: calculates distances for segments based on list index
-    #points = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
-    #segments = ['s1', 's2', 's3', 's4', 's5', 's6']
-##    diff = 0
-##    for j in range(len(segments)):
-##        if segments[j] == s1:
-##            for i in range(len(segments)):
-##                if segments[i] == s2:
-##                    diff = abs(j-i)
+        s1_edge = endpoints[s1]
+        s2_edge = endpoints[s2]
 
-    ndist = 10 #s1.distanceTo(s2)
-    return getNDProbability(ndist)
+        minpair = [0,0,100000]
+        for i in range(0,2):
+            for j in range(0,2):
+                d = round(pointdistance(s1_edge[i],s2_edge[j]),2)
+                if d<minpair[2]:
+                    minpair = [i,j,d]
+        #print minpair
+        s1_point = s1_edge[minpair[0]]
+        print s1_point
+        s2_point = s2_edge[minpair[1]]
+        print s2_point
+        if s1_point == s2_point:
+            dist = 0
+        else:
+            path = nx.shortest_path_length(graph)
+            dist = 10#path[s1_point][s2_point]
+    print "network distance between "+str(s1) + ' and '+ str(s2) + ' = '+str(dist)
+    return getNDProbability(dist)
+
+def pointdistance(p1, p2):
+    dist = sqrt((p1[0]-p2[0])**2 +(p1[1]-p2[1])**2)
+    return dist
+
+def getTrackPoints(track):
+    trackpoints = []
+    for row in arcpy.da.SearchCursor(track, ["SHAPE@"]):
+        geom = row[0].projectAs(arcpy.Describe('testSegments.shp').spatialReference)
+        #print geom.firstPoint.X,geom.firstPoint.Y
+        trackpoints.append(row[0])
+    return trackpoints
+
+def getNetworkGraph(segments):
+    g = nx.read_shp(segments)
+    print "road network size: "+str(len(g))
+    #edge = g.edges()[0]
+    #print edge
+    #print g.get_edge_data(edge[0],edge[1])
+    networkgraph = g
+    return g
+
+def getSegmentEndpoints(segments):
+    cursor = arcpy.da.SearchCursor(segments, ["OBJECTID", "SHAPE@"])
+    endpoints = {}
+    for row in cursor:
+          endpoints[row[0]]=((row[1].firstPoint.X,row[1].firstPoint.Y), (row[1].lastPoint.X, row[1].lastPoint.Y))
+    segmentendpoints = endpoints
+    del row
+    del cursor
+    print "Number of segments: "+ str(len(segmentendpoints))
+    #fk = endpoints.keys()[0]
+    fk = 1513646
+    print "Example: key "+str(fk)+' '+ str(segmentendpoints[fk])
+    return endpoints
+
+
+
 
 
 
@@ -113,6 +159,9 @@ def getNetworkTransP(s1, s2, segments):
 def mapMatch(points, segments):
     #this array stores, for each point, probability distributions over segments, together with the (most probable) predecessor segment
     V = [{}]
+    #initiate network graph and segment endpoints
+    graph = getNetworkGraph(segments)
+    endpoints = getSegmentEndpoints(segments)
     #init first point
     sc = getSegmentCandidates(points[0], segments)
     for s in sc:
@@ -130,7 +179,7 @@ def mapMatch(points, segments):
             prev_ss = None
             for prev_s in lastsc:
                  #determine the most probable transition probability from previous candidates to s
-                tr_prob = V[t-1][prev_s]["prob"]*getNetworkTransP(prev_s, s, segments)
+                tr_prob = V[t-1][prev_s]["prob"]*getNetworkTransP(prev_s, s, graph, endpoints)
                 if tr_prob > max_tr_prob:
                     max_tr_prob = tr_prob
                     prev_ss = prev_s
@@ -164,19 +213,9 @@ def mapMatch(points, segments):
     return opt
 
 
-def getTrackPoints(track):
-    trackpoints = []
-    for row in arcpy.da.SearchCursor(track, ["SHAPE@"]):
-        geom = row[0].projectAs(arcpy.Describe('testSegments.shp').spatialReference)
-        #print geom.firstPoint.X,geom.firstPoint.Y
-        trackpoints.append(row[0])
-    return trackpoints
 
-def getNetworkGraph(segments):
-    g = nx.read_shp(segments)
-    print "road network size: "+str(len(g))
-    print g.edges()[0]
-    g.edges
+
+
 #test
 
 #points = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
@@ -185,8 +224,8 @@ def getNetworkGraph(segments):
 #p = arcpy.PointGeometry(arcpy.Point(160704.663,  386336.415), arcpy.Describe('testSegments.shp').spatialReference)
 #sc = getSegmentCandidates(p, 'testSegments.shp')
 points = getTrackPoints('testTrack.shp')
-getNetworkGraph('testSegments.shp')
-#mapMatch(points, 'testSegments.shp')
+#graph = getNetworkGraph('testSegments.shp')
+mapMatch(points, 'testSegments.shp')
 #print str(points)
 #mapMatch(points, 'testSegments.shp')
 
