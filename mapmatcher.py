@@ -4,31 +4,31 @@
 #               probabilities parameterized based on spatial + network distances. Follows the ideas in Newson, Krumm (2009):
 #               Hidden markov Map Matching through noise and sparseness
 #
-# Author:      Simon Groen, Simon Scheider
+# Author:      Simon Scheider
 #
 # Created:     25/10/2016
 # Copyright:   (c) simon 2016
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 from math import exp
+import os
 from math import sqrt
 import arcpy
 arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching'
+arcpy.env.overwriteOutput = True
 import networkx as nx
 import numpy as np
-import pandas as pd
 
 
-networkgraph = {}
-segmentendpoints = {}
+
+
 
 #A simple map matching algorithm in Python, based on the idea of the Viterbi Algorithm/Hidden Markov Model, but allowing on-the fly distances in a GIS
 
-def getPDProbability(dist):
+def getPDProbability(dist, decayconstant = 10):
     #The probability that given a certain distance between points and segments, the point is on the segment
     #This needs to be parameterized
     #test: turn index difference into a probability (exponential function)
-    decayconstant = 10
     p = 1 if dist == 0 else round(1/exp(dist/decayconstant),4)
     return p
 
@@ -44,10 +44,6 @@ def getSegmentCandidates(point, segments, maxdist=50):
     #Go through these, compute distances, probabilities and store them as candidates
     cursor = arcpy.da.SearchCursor('segments_lyr', ["OBJECTID", "SHAPE@"])
     for row in cursor:
-        #print row[0]
-        #x, y = row[1]
-        #print x, y
-        #partnum = 0
         feat = row[1]
         #compute the spatial distance
         dist = point.distanceTo(row[1])
@@ -58,40 +54,19 @@ def getSegmentCandidates(point, segments, maxdist=50):
     print str(candidates)
     return candidates
     #test: calculates distances for points based on list index
-##    print point
-##    points = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
-##    #segments = ['s1', 's2', 's3', 's4', 's5', 's6']
-##    candidates = {}
-##    for j in range(len(points)):
-##        if points[j] == point:
-##            #print j
-##            for i in range(len(segments)):
-##                #print i
-##                diff = abs(j-i)
-##                candidates[segments[i]] = getPDProbability(diff)
-##            break
-##    print candidates
-##    return candidates
 
-def getNDProbability(dist):
+def getNDProbability(dist,decayconstant = 30):
     #The probability that given a certain network distance between segments, one is the successor of the other in a track
     #This needs to be parameterized
     #test: turn index difference into a probability (exponential function)
-    decayconstant = 10
     p = 1 if dist == 0 else  round(1/exp(dist/decayconstant),2)
     return p
 
 def getNetworkTransP(s1, s2, graph, endpoints):
     #Returns transition probability of going from segment s1 to s2, based on network distance of segments
-    dist = 0
     if s1 == s2:
-        pass
+        dist = 0
     else:
-        #test: calculates distances for segments based on list index
-        #points = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
-        #segments = ['s1', 's2', 's3', 's4', 's5', 's6']
-        #get the graph edges for segment
-
         s1_edge = endpoints[s1]
         s2_edge = endpoints[s2]
 
@@ -101,16 +76,18 @@ def getNetworkTransP(s1, s2, graph, endpoints):
                 d = round(pointdistance(s1_edge[i],s2_edge[j]),2)
                 if d<minpair[2]:
                     minpair = [i,j,d]
-        #print minpair
         s1_point = s1_edge[minpair[0]]
-        print s1_point
         s2_point = s2_edge[minpair[1]]
-        print s2_point
         if s1_point == s2_point:
             dist = 0
         else:
-            path = nx.shortest_path_length(graph)
-            dist = 10#path[s1_point][s2_point]
+            if (not graph.has_node(s1_point)) or (not graph.has_node(s2_point)):
+                print "node not in segment graph!"
+            try:
+                dist = nx.shortest_path_length(graph, s1_point, s2_point, weight='length')
+            except nx.NetworkXNoPath:
+                print 'no path available, assume a large distance'
+                dist = 9
     print "network distance between "+str(s1) + ' and '+ str(s2) + ' = '+str(dist)
     return getNDProbability(dist)
 
@@ -121,35 +98,33 @@ def pointdistance(p1, p2):
 def getTrackPoints(track):
     trackpoints = []
     for row in arcpy.da.SearchCursor(track, ["SHAPE@"]):
+        #make sure tracks are reprojected to network reference system (should be planar)
         geom = row[0].projectAs(arcpy.Describe('testSegments.shp').spatialReference)
-        #print geom.firstPoint.X,geom.firstPoint.Y
         trackpoints.append(row[0])
     return trackpoints
 
-def getNetworkGraph(segments):
+def getNetworkGraph(segments,segmentlengths):
     g = nx.read_shp(segments)
+    #This selects the largest connected component of the graph
+    sg = list(nx.connected_component_subgraphs(g.to_undirected()))[0]
     print "road network size: "+str(len(g))
-    #edge = g.edges()[0]
-    #print edge
-    #print g.get_edge_data(edge[0],edge[1])
-    networkgraph = g
-    return g
+    # Get the length for each road segment.
+    for n0, n1 in sg.edges_iter():
+        oid = sg[n0][n1]["OBJECTID"]
+        sg.edge[n0][n1]['length'] = segmentlengths[oid]
+    return sg
 
-def getSegmentEndpoints(segments):
+def getSegmentInfo(segments):
     cursor = arcpy.da.SearchCursor(segments, ["OBJECTID", "SHAPE@"])
     endpoints = {}
+    segmentlengths = {}
     for row in cursor:
           endpoints[row[0]]=((row[1].firstPoint.X,row[1].firstPoint.Y), (row[1].lastPoint.X, row[1].lastPoint.Y))
-    segmentendpoints = endpoints
+          segmentlengths[row[0]]= row[1].length
     del row
     del cursor
     print "Number of segments: "+ str(len(segmentendpoints))
-    #fk = endpoints.keys()[0]
-    fk = 1513646
-    print "Example: key "+str(fk)+' '+ str(segmentendpoints[fk])
-    return endpoints
-
-
+    return (endpoints,segmentlengths)
 
 
 
@@ -157,11 +132,14 @@ def getSegmentEndpoints(segments):
 #This is the actual method. It gets two lists of point and segment identifiers, and returns the most probable segment path for the list of points
 
 def mapMatch(points, segments):
-    #this array stores, for each point, probability distributions over segments, together with the (most probable) predecessor segment
+    #Based on the Viterbi algorithm, see https://en.wikipedia.org/wiki/Viterbi_algorithm
+    #this array stores, for each point in a track, probability distributions over segments, together with the (most probable) predecessor segment
     V = [{}]
-    #initiate network graph and segment endpoints
-    graph = getNetworkGraph(segments)
-    endpoints = getSegmentEndpoints(segments)
+    #initiate network graph and get segment info about segments from arcpy
+    endpoints = getSegmentInfo(segments)[0]
+    lengths = getSegmentInfo(segments)[1]
+    graph = getNetworkGraph(segments,lengths)
+
     #init first point
     sc = getSegmentCandidates(points[0], segments)
     for s in sc:
@@ -212,113 +190,26 @@ def mapMatch(points, segments):
     print 'The path for points ['+' '.join(pointstr)+'] is: [' + ' '.join(optstr) + '] with highest probability of %s' % max_prob
     return opt
 
+def exportPath(opt, trackname):
+    qr =  '"OBJECTID" IN ' +str(tuple(opt))
+    print qr
+    outname = os.path.splitext(trackname)[0]+'_path'
+    arcpy.SelectLayerByAttribute_management('segments_lyr',"NEW_SELECTION", qr)
+    try:
+        if arcpy.Exists(outname):
+            arcpy.Delete_management(outname)
+        arcpy.FeatureClassToFeatureClass_conversion('segments_lyr', arcpy.env.workspace, outname)
+    except Exception:
+        e = sys.exc_info()[1]
+        print(e.args[0])
+
+        # If using this code within a script tool, AddError can be used to return messages
+        #   back to a script tool.  If not, AddError will have no effect.
+        arcpy.AddError(e.args[0])
 
 
 
 
-#test
-
-#points = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
-#segments = ['s1', 's2', 's3', 's4', 's5', 's6']
-#segments = list(reversed(segments))
-#p = arcpy.PointGeometry(arcpy.Point(160704.663,  386336.415), arcpy.Describe('testSegments.shp').spatialReference)
-#sc = getSegmentCandidates(p, 'testSegments.shp')
 points = getTrackPoints('testTrack.shp')
-#graph = getNetworkGraph('testSegments.shp')
-mapMatch(points, 'testSegments.shp')
-#print str(points)
-#mapMatch(points, 'testSegments.shp')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def viterbi(obs, states, start_p, trans_p, emit_p):
-#taken from https://en.wikipedia.org/wiki/Viterbi_algorithm
-    V = [{}]
-
-    for st in states:
-        V[0][st] = {"prob": start_p[st] * emit_p[st][obs[0]], "prev": None}
-
-    # Run Viterbi when t > 0
-    for t in range(1, len(obs)):
-        V.append({})
-        for st in states:
-            max_tr_prob = max(V[t-1][prev_st]["prob"]*trans_p[prev_st][st] for prev_st in states)
-            for prev_st in states:
-                if V[t-1][prev_st]["prob"] * trans_p[prev_st][st] == max_tr_prob:
-                    max_prob = max_tr_prob * emit_p[st][obs[t]]
-                    V[t][st] = {"prob": max_prob, "prev": prev_st}
-                    break
-
-    for line in dptable(V):
-        print line
-
-    opt = []
-
-    # The highest probability
-
-    max_prob = max(value["prob"] for value in V[-1].values())
-
-    previous = None
-
-    # Get most probable state and its backtrack
-    for st, data in V[-1].items():
-        if data["prob"] == max_prob:
-            opt.append(st)
-            previous = st
-            break
-
-    # Follow the backtrack till the first observation
-    for t in range(len(V) - 2, -1, -1):
-        opt.insert(0, V[t + 1][previous]["prev"])
-        previous = V[t + 1][previous]["prev"]
-
-
-    print 'The steps of states are ' + ' '.join(opt) + ' with highest probability of %s' % max_prob
-
-
-def dptable(V):
-    # Print a table of steps from dictionary
-    yield " ".join(("%12d" % i) for i in range(len(V)))
-    for state in V[0]:
-        yield "%.7s: " % state + " ".join("%.7s" % ("%f" % v[state]["prob"]) for v in V)
-
-#simple example:
-##states = ('Healthy', 'Fever')
-##observations = ('normal', 'cold', 'dizzy')
-##start_probability = {'Healthy': 0.6, 'Fever': 0.4}
-##transition_probability = {
-##   'Healthy' : {'Healthy': 0.7, 'Fever': 0.3},
-##   'Fever' : {'Healthy': 0.4, 'Fever': 0.6}
-##   }
-##
-##emission_probability = {
-##   'Healthy' : {'normal': 0.5, 'cold': 0.4, 'dizzy': 0.1},
-##   'Fever' : {'normal': 0.1, 'cold': 0.3, 'dizzy': 0.6}
-##   }
-
-#viterbi(observations,states,start_probability,transition_probability,emission_probability)
+opt = mapMatch(points, 'testSegments.shp')
+exportPath(opt, 'testTrack.shp')
