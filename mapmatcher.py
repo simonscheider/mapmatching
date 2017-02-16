@@ -64,6 +64,7 @@ def getNDProbability(dist,decayconstant = 30):
 
 def getNetworkTransP(s1, s2, graph, endpoints):
     #Returns transition probability of going from segment s1 to s2, based on network distance of segments
+    subpath = None
     if s1 == s2:
         dist = 0
     else:
@@ -85,11 +86,16 @@ def getNetworkTransP(s1, s2, graph, endpoints):
                 print "node not in segment graph!"
             try:
                 dist = nx.shortest_path_length(graph, s1_point, s2_point, weight='length')
+                path = nx.shortest_path(graph, s1_point, s2_point, weight='length')
+                path_edges = zip(path,path[1:])
+                subpath = []
+                for e in path_edges:
+                    subpath.append(graph.edge[e[0]][e[1]]["OBJECTID"])
             except nx.NetworkXNoPath:
                 print 'no path available, assume a large distance'
                 dist = 9
     print "network distance between "+str(s1) + ' and '+ str(s2) + ' = '+str(dist)
-    return getNDProbability(dist)
+    return (getNDProbability(dist),subpath)
 
 def pointdistance(p1, p2):
     dist = sqrt((p1[0]-p2[0])**2 +(p1[1]-p2[1])**2)
@@ -123,7 +129,7 @@ def getSegmentInfo(segments):
           segmentlengths[row[0]]= row[1].length
     del row
     del cursor
-    print "Number of segments: "+ str(len(segmentendpoints))
+    print "Number of segments: "+ str(len(endpoints))
     return (endpoints,segmentlengths)
 
 
@@ -143,7 +149,7 @@ def mapMatch(points, segments):
     #init first point
     sc = getSegmentCandidates(points[0], segments)
     for s in sc:
-        V[0][s] = {"prob": sc[s], "prev": None}
+        V[0][s] = {"prob": sc[s], "prev": None, "path": None}
     # Run Viterbi when t > 0
     for t in range(1, len(points)):
         V.append({})
@@ -156,13 +162,17 @@ def mapMatch(points, segments):
             max_tr_prob = 0
             prev_ss = None
             for prev_s in lastsc:
-                 #determine the most probable transition probability from previous candidates to s
-                tr_prob = V[t-1][prev_s]["prob"]*getNetworkTransP(prev_s, s, graph, endpoints)
+                #determine the most probable transition probability from previous candidates to s and get the corresponding network path
+                n = getNetworkTransP(prev_s, s, graph, endpoints)
+                np = n[0]
+                path = n[1]
+                tr_prob = V[t-1][prev_s]["prob"]*np
                 if tr_prob > max_tr_prob:
                     max_tr_prob = tr_prob
                     prev_ss = prev_s
             max_prob = max_tr_prob * sc[s]
-            V[t][s] = {"prob": max_prob, "prev": prev_ss}
+            V[t][s] = {"prob": max_prob, "prev": prev_ss, "path": path}
+
 
     print V
 
@@ -183,11 +193,16 @@ def mapMatch(points, segments):
     # Follow the backtrack till the first observation
     for t in range(len(V) - 2, -1, -1):
         #print V[t + 1][previous]["prev"]
+        path = V[t + 1][previous]["path"]
+        #opt[0:1] =(path if path !=None else [])
         opt.insert(0, V[t + 1][previous]["prev"])
         previous = V[t + 1][previous]["prev"]
     pointstr= [str(g.firstPoint.X)+' '+str(g.firstPoint.Y) for g in points]
     optstr= [str(i) for i in opt]
     print 'The path for points ['+' '.join(pointstr)+'] is: [' + ' '.join(optstr) + '] with highest probability of %s' % max_prob
+    #pl = [(len(p['path']) if p['path'] !=None else 100) for p in opt]
+    #print min(pl)
+    #print opt
     return opt
 
 def exportPath(opt, trackname):
