@@ -1,6 +1,6 @@
 # Map Matcher
 
-This python script allows map matching (matching of track points to a network)
+This python script (mapmatcher.py) allows map matching (matching of track points to a network)
 in arcpy using a Hidden Markov model with
 probabilities parameterized based on spatial + network distances.
 Follows the ideas in Newson, Krumm (2009):
