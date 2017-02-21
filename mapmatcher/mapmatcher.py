@@ -350,16 +350,16 @@ def getSegmentInfo(segments):
 
 if __name__ == '__main__':
 
-    #Test using the shipped data example
-    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching'
-    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
-    #outputs testTrack_path.shp
-    exportPath(opt, 'testTrack.shp')
-##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
-##    trackname ='QT170212C.shp'
-##    roadname ='Roads2.shp'
-##    #To do: take into account crossing streets. Fetch key value errors path = V[t + 1][previous]["path"]
-##    opt = mapMatch(trackname, roadname, 20, 10, 50)
-####    #outputs testTrack_path.shp
-##    exportPath(opt, trackname)
+##    #Test using the shipped data example
+##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching'
+##    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
+##    #outputs testTrack_path.shp
+##    exportPath(opt, 'testTrack.shp')
+    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
+    trackname ='QT170212C.shp'
+    roadname ='Roads2.shp'
+    #To do: take into account crossing streets. Fetch key value errors path = V[t + 1][previous]["path"]
+    opt = mapMatch(trackname, roadname, 20, 10, 50)
+##    #outputs testTrack_path.shp
+    exportPath(opt, trackname)
 
