@@ -53,7 +53,7 @@ class mapMatch(object):
 
         # parameter 1
         decayconstantNet = arcpy.Parameter(
-            displayName="decay constant on network (in meter, default 30)",
+            displayName="Decay constant on network (in meter)",
             name="decayconstantNet",
             datatype="GPDouble",
             parameterType="Optional",
@@ -63,23 +63,23 @@ class mapMatch(object):
 
         # parameter 2
         decayConstantEu = arcpy.Parameter(
-            displayName="decay constant for Eucl. distances (in meter, default 10)",
+            displayName="Decay constant for Eucl. distances (in meter)",
             name="decayconstantEu",
             datatype="GPDouble",
             parameterType="Optional",
             direction="Input")
 
-        decayconstantNet.value = "10"
+        decayConstantEu.value = "10"
 
         # parameter 2
         maxDist = arcpy.Parameter(
-            displayName="maximum Eucl. distance for selecting segment candidates (in meter, default 50)",
+            displayName="maximum Eucl. distance for selecting segment candidates (in meter)",
             name="maxDist",
             datatype="GPDouble",
             parameterType="Optional",
             direction="Input")
 
-        decayconstantNet.value = "50"
+        maxDist.value = "50"
 
 ##        # Derived Output Features parameter
 ##        out_features = arcpy.Parameter(
