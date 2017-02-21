@@ -37,6 +37,7 @@ arcpy.env.overwriteOutput = True
 import networkx as nx
 
 
+
 def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDist = 50):
     """
     The main method. Based on the Viterbi algorithm for Hidden Markov models,
@@ -61,11 +62,12 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
     endpoints = r[0]
     lengths = r[1]
     graph = getNetworkGraph(segments,lengths)
+    pathnodes = [] #set of pathnodes to prevent loops
 
     #init first point
     sc = getSegmentCandidates(points[0], segments, decayConstantEu, maxDist)
     for s in sc:
-        V[0][s] = {"prob": sc[s], "prev": None, "path": None}
+        V[0][s] = {"prob": sc[s], "prev": None, "path": [], "pathnodes":[]}
     # Run Viterbi when t > 0
     for t in range(1, len(points)):
         V.append({})
@@ -76,10 +78,11 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
         for s in sc:
             max_tr_prob = 0
             prev_ss = None
-            path = None
+            path = []
             for prev_s in lastsc:
                 #determine the most probable transition probability from previous candidates to s and get the corresponding network path
-                n = getNetworkTransP(prev_s, s, graph, endpoints, decayconstantNet)
+                pathnodes = V[t-1][prev_s]["pathnodes"][-10:]
+                n = getNetworkTransP(prev_s, s, graph, endpoints, lengths, pathnodes, decayconstantNet)
                 np = n[0] #This is the network transition probability
                 tr_prob = V[t-1][prev_s]["prob"]*np
                 #this selects the most probable predecessor candidate and the path to it
@@ -87,9 +90,11 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
                     max_tr_prob = tr_prob
                     prev_ss = prev_s
                     path = n[1]
+                    if n[2] != None:
+                        pathnodes.append(n[2])
             #The final probability of a candidate is the product of a-priori and network transitional probability
             max_prob =  sc[s] * max_tr_prob
-            V[t][s] = {"prob": max_prob, "prev": prev_ss, "path": path}
+            V[t][s] = {"prob": max_prob, "prev": prev_ss, "path": path, "pathnodes":pathnodes}
 
     #print V
 
@@ -106,21 +111,65 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
             opt.append(st)
             previous = st
             break
+##    print  " previous: "+str(previous)
+##    print  " max_prob: "+str(max_prob)
+##    print  " V -1: "+str(V[-1].items())
 
     # Follow the backtrack till the first observation to fish out most probable states and corresponding paths
     for t in range(len(V) - 2, -1, -1):
-        #Get the path between last and most probable previous segment and add it to the resulting path
+        #Get the subpath between last and most probable previous segment and add it to the resulting path
         path = V[t + 1][previous]["path"]
         opt[0:0] =(path if path !=None else [])
         #Insert the previous segment
         opt.insert(0, V[t + 1][previous]["prev"])
         previous = V[t + 1][previous]["prev"]
+
+    #Clean the path (remove double segments and crossings
+    opt = cleanPath(opt, endpoints)
     pointstr= [str(g.firstPoint.X)+' '+str(g.firstPoint.Y) for g in points]
     optstr= [str(i) for i in opt]
     print 'The path for points ['+' '.join(pointstr)+'] is: '
     print '[' + ' '.join(optstr) + '] with highest probability of %s' % max_prob
 
     return opt
+
+def cleanPath(opt, endpoints):
+    # removes redundant segments and segments that are unecessary to form a path (crossings)
+    last =()
+    lastlast =()
+    optout = []
+    for i, s in enumerate(opt):
+        if s != last:
+            match = False
+            if last != () and lastlast != ():
+                lastep = endpoints[last]
+                lastlastep = endpoints[lastlast]
+                sep = endpoints[s]
+                for j in lastlastep:
+                    if lastep[0]== j:
+                        for k in sep:
+                            if lastep[1] == k:
+                                match = True
+                    elif lastep[1]== j:
+                        for k in sep:
+                            if lastep[0] == k:
+                                match = True
+            elif last != ():
+                sep = endpoints[s]
+                lastep = endpoints[last]
+                for k in sep:
+                    if lastep[1] == k or lastep[0] == k:
+                        match = True
+            if match:
+                optout.append(last)
+            if i == len(opt)-1:
+                optout.append(s)
+        lastlast = last
+        last = s
+    return optout
+
+
+
 
 def exportPath(opt, trackname):
     """
@@ -148,7 +197,10 @@ def getPDProbability(dist, decayconstant = 10):
     This needs to be parameterized
     Turn difference into a probability with exponential decay function
     """
-    p = 1 if dist == 0 else round(1/exp(dist/decayconstant),4)
+    try:
+        p = 1 if dist == 0 else round(1/exp(dist/decayconstant),4)
+    except OverflowError:
+        p =  round(1/float('inf'),2)
     return p
 
 def getSegmentCandidates(point, segments, decayConstantEu, maxdist=50):
@@ -157,7 +209,7 @@ def getSegmentCandidates(point, segments, decayConstantEu, maxdist=50):
     Based on maximal spatial distance of segments from point.
     """
     p = point.firstPoint #get the coordinates of the point geometry
-    print "Neighbors of point "+str(p.X) +' '+ str(p.Y)+" : "
+    #print "Neighbors of point "+str(p.X) +' '+ str(p.Y)+" : "
     #Select all segments within max distance
     arcpy.Delete_management('segments_lyr')
     arcpy.MakeFeatureLayer_management(segments, 'segments_lyr')
@@ -165,6 +217,7 @@ def getSegmentCandidates(point, segments, decayConstantEu, maxdist=50):
     candidates = {}
     #Go through these, compute distances, probabilities and store them as candidates
     cursor = arcpy.da.SearchCursor('segments_lyr', ["OBJECTID", "SHAPE@"])
+    row =[]
     for row in cursor:
         feat = row[1]
         #compute the spatial distance
@@ -173,7 +226,7 @@ def getSegmentCandidates(point, segments, decayConstantEu, maxdist=50):
         candidates[row[0]] = getPDProbability(dist, decayConstantEu)
     del row
     del cursor
-    print str(candidates)
+    #print str(candidates)
     return candidates
 
 
@@ -183,14 +236,20 @@ def getNDProbability(dist,decayconstant = 30):
     This needs to be parameterized
     Turn difference into a probability  with exponential decay function
     """
-    p = 1 if dist == 0 else  round(1/exp(dist/decayconstant),2)
+    try:
+        p = 1 if dist == 0 else  round(1/exp(dist/decayconstant),2)
+    except OverflowError:
+        p =  round(1/float('inf'),2)
     return p
 
-def getNetworkTransP(s1, s2, graph, endpoints, decayconstantNet):
+def getNetworkTransP(s1, s2, graph, endpoints, segmentlengths, pathnodes, decayconstantNet):
     """
     Returns transition probability of going from segment s1 to s2, based on network distance of segments, as well as corresponding path
     """
-    subpath = None
+    subpath = []
+    s1_point = None
+    s2_point = None
+
     if s1 == s2:
         dist = 0
     else:
@@ -198,7 +257,10 @@ def getNetworkTransP(s1, s2, graph, endpoints, decayconstantNet):
         s1_edge = endpoints[s1]
         s2_edge = endpoints[s2]
 
-        #This determines segment endpoints of the two segment that are closest to each other
+        s1_l = segmentlengths[s1]
+        s2_l = segmentlengths[s2]
+
+        #This determines segment endpoints of the two segments that are closest to each other
         minpair = [0,0,100000]
         for i in range(0,2):
             for j in range(0,2):
@@ -208,29 +270,35 @@ def getNetworkTransP(s1, s2, graph, endpoints, decayconstantNet):
         s1_point = s1_edge[minpair[0]]
         s2_point = s2_edge[minpair[1]]
 
-        if s1_point == s2_point:
-            dist = 0
+        if (s1_point in pathnodes or s2_point in pathnodes): # Avoid paths reusing an old pathnode (to prevent self-crossings)
+            dist = 100
         else:
-            if (not graph.has_node(s1_point)) or (not graph.has_node(s2_point)):
-                print "node not in segment graph!"
-            try:
-                #This computes a shortes path (using segment length) on a graph where segment endpoints are nodes and segments are (undirected) edges
-                dist = nx.shortest_path_length(graph, s1_point, s2_point, weight='length')
-                path = nx.shortest_path(graph, s1_point, s2_point, weight='length')
-                #get path edges
-                path_edges = zip(path,path[1:])
-                #print "edges: "+str(path_edges)
-                subpath = []
-                # get object ids for path edges
-                for e in path_edges:
-                    oid = graph.edge[e[0]][e[1]]["OBJECTID"]
-                    subpath.append(oid)
-                #print "oid path:"+str(subpath)
-            except nx.NetworkXNoPath:
-                print 'no path available, assume a large distance'
-                dist = 100
+            if s1_point == s2_point:
+                #If segments are touching, use a small network distance
+                    dist = 5 #(s1_l+s2_l)/2
+            else:
+                try:
+                    #Compute a shortes path (using segment length) on graph where segment endpoints are nodes and segments are (undirected) edges
+                    if graph.has_node(s1_point) and graph.has_node(s2_point):
+                        dist = nx.shortest_path_length(graph, s1_point, s2_point, weight='length')
+                        path = nx.shortest_path(graph, s1_point, s2_point, weight='length')
+                        #get path edges
+                        path_edges = zip(path,path[1:])
+                        #print "edges: "+str(path_edges)
+                        subpath = []
+                        # get object ids for path edges
+                        for e in path_edges:
+                            oid = graph.edge[e[0]][e[1]]["OBJECTID"]
+                            subpath.append(oid)
+                        #print "oid path:"+str(subpath)
+                    else:
+                        print "node not in segment graph!"
+                        dist = 100
+                except nx.NetworkXNoPath:
+                    print 'no path available, assume a large distance'
+                    dist = 100
     #print "network distance between "+str(s1) + ' and '+ str(s2) + ' = '+str(dist)
-    return (getNDProbability(dist,decayconstantNet),subpath)
+    return (getNDProbability(dist,decayconstantNet),subpath,s2_point)
 
 def pointdistance(p1, p2):
     dist = sqrt((p1[0]-p2[0])**2 +(p1[1]-p2[1])**2)
@@ -243,8 +311,10 @@ def getTrackPoints(track, segments):
     trackpoints = []
     for row in arcpy.da.SearchCursor(track, ["SHAPE@"]):
         #make sure track points are reprojected to network reference system (should be planar)
-        geom = row[0].projectAs(arcpy.Describe(segments).spatialReference)
+        geom = row[0]
+        #geom = row[0].projectAs(arcpy.Describe(segments).spatialReference)
         trackpoints.append(row[0])
+    print 'track size:' + str(len(trackpoints))
     return trackpoints
 
 def getNetworkGraph(segments,segmentlengths):
@@ -282,6 +352,14 @@ if __name__ == '__main__':
 
     #Test using the shipped data example
     arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching'
-    opt = mapMatch('testTrack.shp', 'testSegments.shp')
+    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
     #outputs testTrack_path.shp
     exportPath(opt, 'testTrack.shp')
+##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
+##    trackname ='QT170212C.shp'
+##    roadname ='Roads2.shp'
+##    #To do: take into account crossing streets. Fetch key value errors path = V[t + 1][previous]["path"]
+##    opt = mapMatch(trackname, roadname, 20, 10, 50)
+####    #outputs testTrack_path.shp
+##    exportPath(opt, trackname)
+
