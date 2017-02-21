@@ -80,7 +80,7 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
             prev_ss = None
             path = []
             for prev_s in lastsc:
-                #determine the most probable transition probability from previous candidates to s and get the corresponding network path
+                #determine the highest network transition probability from previous candidates to s and get the corresponding network path
                 pathnodes = V[t-1][prev_s]["pathnodes"][-10:]
                 n = getNetworkTransP(prev_s, s, graph, endpoints, lengths, pathnodes, decayconstantNet)
                 np = n[0] #This is the network transition probability
