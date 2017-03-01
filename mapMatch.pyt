@@ -1,6 +1,6 @@
 
 import arcpy
-import mapmatcher
+from mapmatcher import mapmatcher
 
 class Toolbox(object):
     def __init__(self):
@@ -24,7 +24,7 @@ class mapMatch(object):
                Follows the ideas in Newson, Krumm (2009):
                "Hidden markov Map Matching through noise and sparseness"
                '''
-        self.canRunInBackground = True
+        self.canRunInBackground = False
 
     def getParameterInfo(self):
         #Define parameter definitions

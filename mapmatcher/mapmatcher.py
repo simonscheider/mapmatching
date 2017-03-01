@@ -35,6 +35,7 @@ import os
 import arcpy
 arcpy.env.overwriteOutput = True
 import networkx as nx
+import ogr
 
 
 
@@ -96,6 +97,15 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
             max_prob =  sc[s] * max_tr_prob
             V[t][s] = {"prob": max_prob, "prev": prev_ss, "path": path, "pathnodes":pathnodes}
 
+        #Now max standardize all p-values to prevent running out of digits
+        maxv = max(value["prob"] for value in V[t].values())
+        maxv = (1 if maxv == 0 else maxv)
+        for s in V[t].keys():
+            V[t][s]["prob"]=V[t][s]["prob"]/maxv
+
+
+
+
     #print V
 
     #opt is the result: a list of (matched) segments [s1, s2, s3,...] in the exact order of the point track: [p1, p2, p3,...]
@@ -104,6 +114,8 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
     # get the highest probability at the end of the track
     max_prob = max(value["prob"] for value in V[-1].values())
     previous = None
+    if max_prob == 0:
+        print " probabilities fall to zero (network distances in data are too large, try increasing network decay parameter)"
 
     # Get most probable ending state and its backtrack
     for st, data in V[-1].items():
@@ -125,6 +137,7 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
         previous = V[t + 1][previous]["prev"]
 
     #Clean the path (remove double segments and crossings
+    print "path length before cleaning :" +str(len(opt))
     opt = cleanPath(opt, endpoints)
     pointstr= [str(g.firstPoint.X)+' '+str(g.firstPoint.Y) for g in points]
     optstr= [str(i) for i in opt]
@@ -275,7 +288,7 @@ def getNetworkTransP(s1, s2, graph, endpoints, segmentlengths, pathnodes, decayc
         else:
             if s1_point == s2_point:
                 #If segments are touching, use a small network distance
-                    dist = 5 #(s1_l+s2_l)/2
+                    dist = 5
             else:
                 try:
                     #Compute a shortes path (using segment length) on graph where segment endpoints are nodes and segments are (undirected) edges
@@ -292,10 +305,10 @@ def getNetworkTransP(s1, s2, graph, endpoints, segmentlengths, pathnodes, decayc
                             subpath.append(oid)
                         #print "oid path:"+str(subpath)
                     else:
-                        print "node not in segment graph!"
+                        #print "node not in segment graph!"
                         dist = 100
                 except nx.NetworkXNoPath:
-                    print 'no path available, assume a large distance'
+                    #print 'no path available, assume a large distance'
                     dist = 100
     #print "network distance between "+str(s1) + ' and '+ str(s2) + ' = '+str(dist)
     return (getNDProbability(dist,decayconstantNet),subpath,s2_point)
@@ -309,57 +322,98 @@ def getTrackPoints(track, segments):
     Turns track shapefile into a list of point geometries, reprojecting to the planar RS of the network file
     """
     trackpoints = []
-    for row in arcpy.da.SearchCursor(track, ["SHAPE@"]):
-        #make sure track points are reprojected to network reference system (should be planar)
-        geom = row[0]
-        #geom = row[0].projectAs(arcpy.Describe(segments).spatialReference)
-        trackpoints.append(row[0])
-    print 'track size:' + str(len(trackpoints))
-    return trackpoints
+    if arcpy.Exists(track):
+        for row in arcpy.da.SearchCursor(track, ["SHAPE@"]):
+            #make sure track points are reprojected to network reference system (should be planar)
+            geom = row[0]
+            #geom = row[0].projectAs(arcpy.Describe(segments).spatialReference)
+            trackpoints.append(row[0])
+        print 'track size:' + str(len(trackpoints))
+        return trackpoints
+    else:
+        print "Track file does not exist!"
 
 def getNetworkGraph(segments,segmentlengths):
     """
     Builds a networkx graph from the network file, inluding segment length taken from arcpy.
     It selects the largest connected component of the network (to prevent errors from routing between unconnected parts)
     """
-    g = nx.read_shp(segments)
-    #This selects the largest connected component of the graph
-    sg = list(nx.connected_component_subgraphs(g.to_undirected()))[0]
-    print "graph size (excluding unconnected parts): "+str(len(g))
-    # Get the length for each road segment and append it as an attribute to the edges in the graph.
-    for n0, n1 in sg.edges_iter():
-        oid = sg[n0][n1]["OBJECTID"]
-        sg.edge[n0][n1]['length'] = segmentlengths[oid]
-    return sg
+    #generate the full network path for GDAL to be able to read the file
+    path =str(os.path.join(arcpy.env.workspace,segments))
+    print path
+    if arcpy.Exists(path):
+        g = nx.read_shp(path)
+        #This selects the largest connected component of the graph
+        sg = list(nx.connected_component_subgraphs(g.to_undirected()))[0]
+        print "graph size (excluding unconnected parts): "+str(len(g))
+        # Get the length for each road segment and append it as an attribute to the edges in the graph.
+        for n0, n1 in sg.edges_iter():
+            oid = sg[n0][n1]["OBJECTID"]
+            sg.edge[n0][n1]['length'] = segmentlengths[oid]
+        return sg
+    else:
+        print "network file not found on path: "+path
 
 def getSegmentInfo(segments):
     """
     Builds a dictionary for looking up endpoints of network segments (needed only because networkx graph identifies edges by nodes)
     """
-    cursor = arcpy.da.SearchCursor(segments, ["OBJECTID", "SHAPE@"])
-    endpoints = {}
-    segmentlengths = {}
-    for row in cursor:
-          endpoints[row[0]]=((row[1].firstPoint.X,row[1].firstPoint.Y), (row[1].lastPoint.X, row[1].lastPoint.Y))
-          segmentlengths[row[0]]= row[1].length
-    del row
-    del cursor
-    print "Number of segments: "+ str(len(endpoints))
-    return (endpoints,segmentlengths)
+    if arcpy.Exists(segments):
+        cursor = arcpy.da.SearchCursor(segments, ["OBJECTID", "SHAPE@"])
+        endpoints = {}
+        segmentlengths = {}
+        for row in cursor:
+              endpoints[row[0]]=((row[1].firstPoint.X,row[1].firstPoint.Y), (row[1].lastPoint.X, row[1].lastPoint.Y))
+              segmentlengths[row[0]]= row[1].length
+        del row
+        del cursor
+        print "Number of segments: "+ str(len(endpoints))
+        return (endpoints,segmentlengths)
+    else:
+        print "segment file does not exist!"
 
 
 if __name__ == '__main__':
 
-##    #Test using the shipped data example
-##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching'
-##    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
-##    #outputs testTrack_path.shp
-##    exportPath(opt, 'testTrack.shp')
-    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
-    trackname ='QT170212C.shp'
-    roadname ='Roads2.shp'
-    #To do: take into account crossing streets. Fetch key value errors path = V[t + 1][previous]["path"]
-    opt = mapMatch(trackname, roadname, 20, 10, 50)
-##    #outputs testTrack_path.shp
-    exportPath(opt, trackname)
+    #Test using the shipped data example
+    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
+    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
+    #outputs testTrack_path.shp
+    exportPath(opt, 'testTrack.shp')
+
+##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
+##    trackname ='QT170212C.shp'
+##    roadname ='Roads2.shp'
+##    opt = mapMatch(trackname, roadname, 20, 10, 50)
+##    exportPath(opt, trackname)
+##
+##    arcpy.env.workspace = 'C:\\Temp\\Simon.gdb\\test'
+##
+##    trackname ='Tom170218.shp'
+##    roadname ='TrkRoads_Tom1.shp'
+##    print trackname
+##    print roadname
+##    opt = mapMatch(trackname, roadname, 20, 10, 50)
+##    exportPath(opt, trackname)
+##
+##    trackname ='Tom170218_2.shp'
+##    roadname ='TrkRoads_Tom2.shp'
+##    print trackname
+##    print roadname
+##    opt = mapMatch(trackname, roadname, 20, 10, 50)
+##    exportPath(opt, trackname)
+##
+####    trackname ='Maarten150318.shp'
+####    roadname ='TrkRoads_Maarten.shp'
+####    print trackname
+####    print roadname
+####    opt = mapMatch(trackname, roadname, 20, 10, 50)
+####    exportPath(opt, trackname)
+##
+##    trackname ='Nico160706_1.shp'
+##    roadname ='TrkRoads_Nico.shp'
+##    print trackname
+##    print roadname
+##    opt = mapMatch(trackname, roadname, 80, 10, 50)
+##    exportPath(opt, trackname)
 
