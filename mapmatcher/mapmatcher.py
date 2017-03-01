@@ -11,7 +11,7 @@
 #
 # Author:      Simon Scheider
 #
-# Created:     17/02/2017
+# Created:     01/03/2017
 # Copyright:   (c) simon 2017
 # Licence:     <your licence>
 
@@ -30,12 +30,19 @@ The code is written in Python 2.7 and depends on:
 __author__      = "Simon Scheider"
 __copyright__   = ""
 
-from math import exp, sqrt
-import os
-import arcpy
-arcpy.env.overwriteOutput = True
-import networkx as nx
-import ogr
+
+import sys
+
+try:
+    from math import exp, sqrt
+    import os
+    import arcpy
+    arcpy.env.overwriteOutput = True
+    import networkx as nx
+
+except ImportError:
+    print "Error: missing one of the libraries (arcpy, networkx)"
+    sys.exit()
 
 
 
@@ -210,6 +217,8 @@ def getPDProbability(dist, decayconstant = 10):
     This needs to be parameterized
     Turn difference into a probability with exponential decay function
     """
+    decayconstant= float(decayconstant)
+    dist= float(dist)
     try:
         p = 1 if dist == 0 else round(1/exp(dist/decayconstant),4)
     except OverflowError:
@@ -249,6 +258,7 @@ def getNDProbability(dist,decayconstant = 30):
     This needs to be parameterized
     Turn difference into a probability  with exponential decay function
     """
+    decayconstant = float(decayconstant)
     try:
         p = 1 if dist == 0 else  round(1/exp(dist/decayconstant),2)
     except OverflowError:
