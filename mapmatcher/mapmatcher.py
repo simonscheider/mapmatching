@@ -293,13 +293,13 @@ def getNetworkTransP(s1, s2, graph, endpoints, segmentlengths, pathnodes, decayc
         s1_point = s1_edge[minpair[0]]
         s2_point = s2_edge[minpair[1]]
 
-        if (s1_point in pathnodes or s2_point in pathnodes): # Avoid paths reusing an old pathnode (to prevent self-crossings)
-            dist = 100
-        else:
-            if s1_point == s2_point:
+##        if (s1_point in pathnodes or s2_point in pathnodes): # Avoid paths reusing an old pathnode (to prevent self-crossings)
+##            dist = 100
+##        else:
+        if s1_point == s2_point:
                 #If segments are touching, use a small network distance
                     dist = 5
-            else:
+        else:
                 try:
                     #Compute a shortes path (using segment length) on graph where segment endpoints are nodes and segments are (undirected) edges
                     if graph.has_node(s1_point) and graph.has_node(s2_point):
@@ -316,10 +316,10 @@ def getNetworkTransP(s1, s2, graph, endpoints, segmentlengths, pathnodes, decayc
                         #print "oid path:"+str(subpath)
                     else:
                         #print "node not in segment graph!"
-                        dist = 100
+                        dist = 600
                 except nx.NetworkXNoPath:
                     #print 'no path available, assume a large distance'
-                    dist = 100
+                    dist = 700
     #print "network distance between "+str(s1) + ' and '+ str(s2) + ' = '+str(dist)
     return (getNDProbability(dist,decayconstantNet),subpath,s2_point)
 
@@ -386,10 +386,16 @@ def getSegmentInfo(segments):
 if __name__ == '__main__':
 
     #Test using the shipped data example
-    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
-    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
+##    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
+##    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
+##    #outputs testTrack_path.shp
+##    exportPath(opt, 'testTrack.shp')
+
+    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
+    opt = mapMatch('Track293162.shp', 'Road_293162.shp', 300, 10, 100)
     #outputs testTrack_path.shp
-    exportPath(opt, 'testTrack.shp')
+    exportPath(opt, 'Track293162.shp')
+
 
 ##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
 ##    trackname ='QT170212C.shp'
