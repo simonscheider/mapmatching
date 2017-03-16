@@ -63,13 +63,13 @@ see https://en.wikipedia.org/wiki/Viterbi_algorithm, it gets trackpoints and seg
         
 * @param _maxDist_ (optional) = the Euclidean distance threshold (in meter) for taking into account segments candidates. Default is 50 meters. Depends also on measurement accuracy of track points.
 
-* result = delivers back a path (a list of segment ids)
+* result = delivers back a path (a list of segment ids).
 
 #### Note: 
-Depending on the type of movement, optional parameters need to be fine tuned to get optimal results.
+Depending on the type of movement, optional parameters need to be fine tuned to get optimal results. For example, when tracking frequency is very slow, then track points are far apart, and then _decayconstantNet_ needs to be increased accordingly.
 
 ### Method _exportPath_ :
-exports the path into a shape file
+Exports the path into a  shape file named _segments_pth.shp_ inside the current ArcGIS workspace.
 
 
 # mapMatch.pyt (ArcGIS Python toolbox)
@@ -90,4 +90,4 @@ To use the Python method as an ArcGIS toolbox, you need to do the following:
 4. Now you can open the toolbox by clicking on it inside an ArcGIS Catalog Window:
 <img src="https://github.com/simonscheider/mapmatching/blob/master/mapMatch.PNG" width="500" />
 
-
+The tool saves a new shape file named _NameofTrack_pth.shp_ inside the current ArcGIS workspace that contains the path of segments to which the track was mapped. When executing, make sure the network is as small as possible to speed up.
