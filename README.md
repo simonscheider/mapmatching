@@ -13,6 +13,8 @@ Created:     16/03/2017
 
 ## Installation
 
+To install as a toolbox in ArcGIS, see [here]
+
 The code is written in Python 2.7 and depends on:
 
 * arcpy (ships with ArcGIS and its own Python 2.7)
@@ -68,7 +70,8 @@ Depending on the type of movement, optional parameters need to be fine tuned to 
 exports the path into a shape file
 
 
-# mapMatch.pyt (ArcGIS Python toolbox)
+# [mapMatch.pyt](#ready-set-go) (ArcGIS Python toolbox)
+
 To use the Python method as an ArcGIS toolbox, you need to do the following:
 
 1. In your ArcGIS Python version (e.g. Folder `C:\Python27\ArcGIS10.3\Lib\site-packages`), install required modules for GDAL and networkx in a cmd window:
