@@ -13,7 +13,7 @@ Created:     16/03/2017
 
 ## Installation
 
-To install as a toolbox in ArcGIS, see [here]
+To install as a toolbox in ArcGIS, see [mapMaptch.pyt](#mapMatch.pyt)
 
 The code is written in Python 2.7 and depends on:
 
@@ -70,7 +70,7 @@ Depending on the type of movement, optional parameters need to be fine tuned to 
 exports the path into a shape file
 
 
-# [mapMatch.pyt](#ready-set-go) (ArcGIS Python toolbox)
+# mapMatch.pyt (ArcGIS Python toolbox)
 
 To use the Python method as an ArcGIS toolbox, you need to do the following:
 
