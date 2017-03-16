@@ -1,6 +1,6 @@
 # Map Matcher
 
-This python script allows map matching (matching of track points to a network)
+This python script allows map matching (matching of tracking points to a network)
 in arcpy using a Hidden Markov model with
 probabilities parameterized based on spatial + network distances.
 Follows the ideas in Newson, Krumm (2009):
@@ -27,20 +27,24 @@ The code is written in Python 2.7 and depends on:
 
 `python pip install GDAL-2.1.3-cp27-cp27m-win32.whl`
 
-To install the mapmatcher module, simply download and execute this windows executable:
+To install the mapmatcher Python module, simply download and execute this windows executable:
 - [mapmatching/dist/mapmatcher-1.0.win32.exe](https://github.com/simonscheider/mapmatching/blob/master/dist/mapmatcher-1.0.win32.exe).    
 
 ## Usage
 
 Example:
 
+`from mapmatcher import mapmatcher`
+
 `arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching'`
 
-`opt = mapMatch('testTrack.shp', 'testSegments.shp')`
+`opt = mapmatcher.mapMatch('testTrack.shp', 'testSegments.shp')`
 
-`#outputs testTrack_path.shp`
+`#outputs testTrack_pth.shp`
 
-`exportPath(opt, 'testTrack.shp')`
+`mapmatcher.exportPath(opt, 'testTrack.shp')`
+
+The last method saves a new shape file named _testTrack_pth.shp_ in the current arcpy workspace, containing a sequence of segments to which the track was mapped.
 
 Results are shown here:
 
@@ -61,13 +65,13 @@ see https://en.wikipedia.org/wiki/Viterbi_algorithm, it gets trackpoints and seg
         
 * @param _maxDist_ (optional) = the Euclidean distance threshold (in meter) for taking into account segments candidates. Default is 50 meters. Depends also on measurement accuracy of track points.
 
-* result = delivers back a path (a list of segment ids)
+* result = delivers back a path (a list of segment ids).
 
 #### Note: 
-Depending on the type of movement, optional parameters need to be fine tuned to get optimal results.
+Depending on the type of movement, optional parameters need to be fine tuned to get optimal results. For example, when tracking frequency is very slow, then track points are far apart, and then _decayconstantNet_ needs to be increased accordingly.
 
 ### Method _exportPath_ :
-exports the path into a shape file
+Exports the path into a  shape file named _segments_pth.shp_ inside the current ArcGIS workspace.
 
 
 # mapMatch.pyt (ArcGIS Python toolbox)
@@ -85,6 +89,7 @@ To use the Python method as an ArcGIS toolbox, you need to do the following:
 
 3. Download the ArcGIS Python toolbox [mapMatch.pyt](https://github.com/simonscheider/mapmatching/blob/master/mapMatch.pyt), together with meta data files [mapMatch.mapMatch.pyt.xml](https://github.com/simonscheider/mapmatching/blob/master/mapMatch.mapMatch.pyt.xml) and [mapMatch.pyt.xml](https://github.com/simonscheider/mapmatching/blob/master/mapMatch.pyt.xml) and drop it anywhere on your computer.
 
-4. Now you can open the toolbox by clicking on it inside an ArcGIS Catalog Window.
+4. Now you can open the toolbox by clicking on it inside an ArcGIS Catalog Window:
+<img src="https://github.com/simonscheider/mapmatching/blob/master/mapMatch.PNG" width="500" />
 
-
+The tool saves a new shape file named _NameofInputTrack_pth.shp_ inside the current ArcGIS workspace that contains the path of segments to which the track was mapped. When executing, make sure the network is as small as possible to speed up.
