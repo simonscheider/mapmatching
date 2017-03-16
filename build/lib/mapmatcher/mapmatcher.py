@@ -62,6 +62,10 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
 
     note: depending on the type of movement, optional parameters need to be fine tuned to get optimal results.
     """
+    #Make sure passed in parameters are floats
+    decayconstantNet = float(decayconstantNet)
+    decayConstantEu = float(decayConstantEu)
+    maxDist= float(maxDist)
 
     #this array stores, for each point in a track, probability distributions over segments, together with the (most probable) predecessor segment taking into account a network distance
     V = [{}]
@@ -261,6 +265,7 @@ def getNDProbability(dist,decayconstant = 30):
     Turn difference into a probability  with exponential decay function
     """
     decayconstant = float(decayconstant)
+    dist = float(dist)
     try:
         p = 1 if dist == 0 else  round(1/exp(dist/decayconstant),2)
     except OverflowError:
@@ -387,16 +392,16 @@ def getSegmentInfo(segments):
 
 if __name__ == '__main__':
 
-    #Test using the shipped data example
-    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
-    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
-    #outputs testTrack_path.shp
-    exportPath(opt, 'testTrack.shp')
-
-##    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
-##    opt = mapMatch('Track293162.shp', 'Road_293162.shp', 300, 10, 100)
+##    #Test using the shipped data example
+##    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
+##    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
 ##    #outputs testTrack_path.shp
-##    exportPath(opt, 'Track293162.shp')
+##    exportPath(opt, 'testTrack.shp')
+
+    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
+    opt = mapMatch('Track293162.shp', 'Road_293162.shp', 300, 10, 100)
+    #outputs testTrack_path.shp
+    exportPath(opt, 'Track293162.shp')
 
 
 ##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
