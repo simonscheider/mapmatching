@@ -1,6 +1,6 @@
 # Map Matcher
 
-This python script (_mapmatcher.py_) allows map matching (matching of track points to a network)
+This python script allows map matching (matching of track points to a network)
 in arcpy using a Hidden Markov model with
 probabilities parameterized based on spatial + network distances.
 Follows the ideas in Newson, Krumm (2009):
@@ -8,10 +8,14 @@ Follows the ideas in Newson, Krumm (2009):
 
 Author:      Simon Scheider
 
-Created:     17/02/2017
+Created:     16/03/2017
    
 
-## The code is written in Python 2.7 and depends on:
+## Installation
+
+To install as a toolbox in ArcGIS, see [mapMaptch.pyt](#mapmatchpyt-arcgis-python-toolbox)
+
+The code is written in Python 2.7 and depends on:
 
 * arcpy (ships with ArcGIS and its own Python 2.7)
 * [networkx](https://networkx.github.io) 
@@ -22,9 +26,12 @@ Created:     17/02/2017
      and then installed with pip locally:
 
 `python pip install GDAL-2.1.3-cp27-cp27m-win32.whl`
-    
+
+To install the mapmatcher module, simply download and execute this windows executable:
+- [mapmatching/dist/mapmatcher-1.0.win32.exe](https://github.com/simonscheider/mapmatching/blob/master/dist/mapmatcher-1.0.win32.exe).    
 
 ## Usage
+
 Example:
 
 `arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching'`
@@ -44,15 +51,15 @@ The main method is _mapMatch_. Based on the Viterbi algorithm for Hidden Markov 
 see https://en.wikipedia.org/wiki/Viterbi_algorithm, it gets trackpoints and segments, and returns the most probable segment path (a list of segments) for the list of points.
 
 ### Method _mapMatch_:
-* @param **track** = a shape file (filename) representing a track, can be unprojected (WGS84)
+* @param **track** = a shape file (filename) with point geometries representing a track, can be unprojected (WGS84). The order of points in this file should reflect the temporal order.
         
-* @param **segments** = a shape file of network segments, should be _projected_ (in meter) to compute Euclidean distances properly (e.g. GCS Amersfoord)
+* @param **segments** = a shape file of network segments, should be _projected_ (in meter) to compute Euclidean distances properly (e.g. GCS Amersfoord). _Note_: To compute network distances, the script turns this network into a graph using [networkx](https://networkx.github.io), based on coincidence of segment end points. It is therefore important that logically connected segments are also geometrically connected (no geometrical errors). Other than this, the script does have other requirements for the network.
         
-* @param _decayconstantNet_ (optional) = the network distance (in meter) after which the match probability falls under 0.34 ([exponential decay](https://en.wikipedia.org/wiki/Exponential_decay)). Default is 30 meters.
+* @param _decayconstantNet_ (optional) = the network distance (in meter) after which the match probability falls under 0.34 ([exponential decay](https://en.wikipedia.org/wiki/Exponential_decay)). Default is 30 meters. This distance parameter depends on the intervals between successing points in the track.
         
-* @param _decayConstantEu_ (optional) = the Euclidean distance (in meter) after which the match probability falls under 0.34 (exponential decay). Default is 10 meters.
+* @param _decayConstantEu_ (optional) = the Euclidean distance (in meter) after which the match probability falls under 0.34 (exponential decay). Default is 10 meters. This distance parameter depends on the measurement accuracy of tracking points.
         
-* @param _maxDist_ (optional) = the Euclidean distance threshold (in meter) for taking into account segments candidates. Default is 50 meters.
+* @param _maxDist_ (optional) = the Euclidean distance threshold (in meter) for taking into account segments candidates. Default is 50 meters. Depends also on measurement accuracy of track points.
 
 * result = delivers back a path (a list of segment ids)
 
@@ -63,7 +70,21 @@ Depending on the type of movement, optional parameters need to be fine tuned to 
 exports the path into a shape file
 
 
+# mapMatch.pyt (ArcGIS Python toolbox)
 
+To use the Python method as an ArcGIS toolbox, you need to do the following:
 
+1. In your ArcGIS Python version (e.g. Folder `C:\Python27\ArcGIS10.3\Lib\site-packages`), install required modules for GDAL and networkx in a cmd window:
+
+- if you have not installed it yet, install pip (http://pip.readthedocs.io/en/latest/installing/). 
+- Download a suitable GDAL wheel from [here](http://www.lfd.uci.edu/~gohlke/pythonlibs/). Then execute:
+- `python pip install GDAL-2.1.3-cp27-cp27m-win32.whl`
+- `python pip install networkx`
+
+2. Install mapmatcher Python module by downloading and executing the windows executable [mapmatching/dist/mapmatcher-1.0.win32.exe](https://github.com/simonscheider/mapmatching/blob/master/dist/mapmatcher-1.0.win32.exe). Make sure you select exactly the Python installation that ships with your ArcGIS as a target folder.
+
+3. Download the ArcGIS Python toolbox [mapMatch.pyt](https://github.com/simonscheider/mapmatching/blob/master/mapMatch.pyt), together with meta data files [mapMatch.mapMatch.pyt.xml](https://github.com/simonscheider/mapmatching/blob/master/mapMatch.mapMatch.pyt.xml) and [mapMatch.pyt.xml](https://github.com/simonscheider/mapmatching/blob/master/mapMatch.pyt.xml) and drop it anywhere on your computer.
+
+4. Now you can open the toolbox by clicking on it inside an ArcGIS Catalog Window.
 
 
