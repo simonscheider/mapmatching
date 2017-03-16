@@ -34,15 +34,17 @@ To install the mapmatcher Python module, simply download and execute this window
 
 Example:
 
+`from mapmatcher import mapmatcher`
+
 `arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching'`
 
-`opt = mapMatch('testTrack.shp', 'testSegments.shp')`
+`opt = mapmatcher.mapMatch('testTrack.shp', 'testSegments.shp')`
 
-`#outputs testTrack_path.shp`
+`#outputs testTrack_pth.shp`
 
-`exportPath(opt, 'testTrack.shp')`
+`mapmatcher.exportPath(opt, 'testTrack.shp')`
 
-The last method saves a new shape file named _testTrack_pth.shp_ in the current arcpy workspace that contains a sequence of segments to which the track was mapped.
+The last method saves a new shape file named _testTrack_pth.shp_ in the current arcpy workspace, containing a sequence of segments to which the track was mapped.
 
 Results are shown here:
 
