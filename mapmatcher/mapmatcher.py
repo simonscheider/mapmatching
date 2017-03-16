@@ -54,8 +54,10 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
     Inputs:
         @param track = a shape file (filename) representing a track, can also be unprojected (WGS84)
         @param segments = a shape file of network segments, should be projected (in meter) to compute Euclidean distances properly (e.g. GCS Amersfoord)
-        @param decayconstantNet (optional) = the network distance (in meter) after which the match probability falls under 0.34 (exponential decay). (note this is the inverse of lambda)
-        @param decayConstantEu (optional) = the Euclidean distance (in meter) after which the match probability falls under 0.34 (exponential decay). (note this is the inverse of lambda)
+        @param decayconstantNet (optional) = the network distance (in meter) after which the match probability falls under 0.34 (exponential decay). (note this is the inverse of lambda).
+        This depends on the point frequency of the track (how far are track points separated?)
+        @param decayConstantEu (optional) = the Euclidean distance (in meter) after which the match probability falls under 0.34 (exponential decay). (note this is the inverse of lambda).
+        This depends on the positional error of the track points (how far can points deviate from their true position?)
         @param maxDist (optional) = the Euclidean distance threshold (in meter) for taking into account segments candidates.
 
     note: depending on the type of movement, optional parameters need to be fine tuned to get optimal results.
@@ -316,10 +318,10 @@ def getNetworkTransP(s1, s2, graph, endpoints, segmentlengths, pathnodes, decayc
                         #print "oid path:"+str(subpath)
                     else:
                         #print "node not in segment graph!"
-                        dist = 600
+                        dist = 3*decayconstantNet #600
                 except nx.NetworkXNoPath:
                     #print 'no path available, assume a large distance'
-                    dist = 700
+                    dist = 3*decayconstantNet #700
     #print "network distance between "+str(s1) + ' and '+ str(s2) + ' = '+str(dist)
     return (getNDProbability(dist,decayconstantNet),subpath,s2_point)
 
@@ -386,15 +388,15 @@ def getSegmentInfo(segments):
 if __name__ == '__main__':
 
     #Test using the shipped data example
-##    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
-##    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
-##    #outputs testTrack_path.shp
-##    exportPath(opt, 'testTrack.shp')
-
-    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
-    opt = mapMatch('Track293162.shp', 'Road_293162.shp', 300, 10, 100)
+    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
+    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
     #outputs testTrack_path.shp
-    exportPath(opt, 'Track293162.shp')
+    exportPath(opt, 'testTrack.shp')
+
+##    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
+##    opt = mapMatch('Track293162.shp', 'Road_293162.shp', 300, 10, 100)
+##    #outputs testTrack_path.shp
+##    exportPath(opt, 'Track293162.shp')
 
 
 ##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
