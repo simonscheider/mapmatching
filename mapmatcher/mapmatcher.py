@@ -202,7 +202,7 @@ def exportPath(opt, trackname):
     This exports the list of segments into a shapefile, a subset of the loaded segment file, including all attributes
     """
     qr =  '"OBJECTID" IN ' +str(tuple(opt))
-    outname = os.path.splitext(trackname)[0]+'_path'
+    outname = (os.path.splitext(os.path.basename(trackname))[0][:9])+'_pth'
     arcpy.SelectLayerByAttribute_management('segments_lyr',"NEW_SELECTION", qr)
     try:
         if arcpy.Exists(outname):
@@ -215,6 +215,21 @@ def exportPath(opt, trackname):
         # If using this code within a script tool, AddError can be used to return messages
         #   back to a script tool.  If not, AddError will have no effect.
         arcpy.AddError(e.args[0])
+        arcpy.AddError(arcpy.env.workspace)
+        arcpy.AddError(outname)
+        #raise arcpy.ExecuteError
+    except arcpy.ExecuteError:
+        arcpy.AddError(arcpy.GetMessages(2))
+
+    # Return any other type of error
+    except:
+        # By default any other errors will be caught here
+        #
+        e = sys.exc_info()[1]
+        print(e.args[0])
+        arcpy.AddError(e.args[0])
+        arcpy.AddError(arcpy.env.workspace)
+        arcpy.AddError(outname)
 
 
 def getPDProbability(dist, decayconstant = 10):
@@ -392,16 +407,16 @@ def getSegmentInfo(segments):
 
 if __name__ == '__main__':
 
-##    #Test using the shipped data example
-##    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
-##    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
-##    #outputs testTrack_path.shp
-##    exportPath(opt, 'testTrack.shp')
-
-    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
-    opt = mapMatch('Track293162.shp', 'Road_293162.shp', 300, 10, 100)
+    #Test using the shipped data example
+    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
+    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
     #outputs testTrack_path.shp
-    exportPath(opt, 'Track293162.shp')
+    exportPath(opt, 'testTrack.shp')
+
+##    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
+##    opt = mapMatch('Track293162.shp', 'Road_293162.shp', 300, 10, 100)
+##    #outputs testTrack_path.shp
+##    exportPath(opt, 'Track293162.shp')
 
 
 ##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
