@@ -27,7 +27,7 @@ The code is written in Python 2.7 and depends on:
 
 `python pip install GDAL-2.1.3-cp27-cp27m-win32.whl`
 
-To install the mapmatcher module, simply download and execute this windows executable:
+To install the mapmatcher Python module, simply download and execute this windows executable:
 - [mapmatching/dist/mapmatcher-1.0.win32.exe](https://github.com/simonscheider/mapmatching/blob/master/dist/mapmatcher-1.0.win32.exe).    
 
 ## Usage
@@ -41,6 +41,8 @@ Example:
 `#outputs testTrack_path.shp`
 
 `exportPath(opt, 'testTrack.shp')`
+
+The last method saves a new shape file named _testTrack_pth.shp_ in the current arcpy workspace that contains a sequence of segments to which the track was mapped.
 
 Results are shown here:
 
@@ -85,6 +87,7 @@ To use the Python method as an ArcGIS toolbox, you need to do the following:
 
 3. Download the ArcGIS Python toolbox [mapMatch.pyt](https://github.com/simonscheider/mapmatching/blob/master/mapMatch.pyt), together with meta data files [mapMatch.mapMatch.pyt.xml](https://github.com/simonscheider/mapmatching/blob/master/mapMatch.mapMatch.pyt.xml) and [mapMatch.pyt.xml](https://github.com/simonscheider/mapmatching/blob/master/mapMatch.pyt.xml) and drop it anywhere on your computer.
 
-4. Now you can open the toolbox by clicking on it inside an ArcGIS Catalog Window.
+4. Now you can open the toolbox by clicking on it inside an ArcGIS Catalog Window:
+<img src="https://github.com/simonscheider/mapmatching/blob/master/mapMatch.PNG" width="500" />
 
 
