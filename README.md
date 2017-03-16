@@ -13,7 +13,7 @@ Created:     16/03/2017
 
 ## Installation
 
-To install as a toolbox in ArcGIS, see [mapMaptch.pyt](#mapMatch.pyt)
+To install as a toolbox in ArcGIS, see [mapMaptch.pyt](#mapmatchpyt-arcgis-python-toolbox)
 
 The code is written in Python 2.7 and depends on:
 
