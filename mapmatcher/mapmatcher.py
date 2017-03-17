@@ -174,7 +174,7 @@ def simplisticMatch(track, segments, maxDist = 50):
 
 
 def cleanPath(opt, endpoints):
-    # removes redundant segments and segments that are unecessary to form a path (crossings) in an iterative manner
+    # removes redundant segments and segments that are unnecessary to form a path (crossings) in an iterative manner
     length=len(opt)+1
     while len(opt)<length:
         last =()
