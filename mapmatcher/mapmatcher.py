@@ -175,42 +175,40 @@ def simplisticMatch(track, segments, maxDist = 50):
 
 def cleanPath(opt, endpoints):
     # removes redundant segments and segments that are unnecessary to form a path (crossings) in an iterative manner
-    length=len(opt)+1
-    while len(opt)<length:
-        last =()
-        lastlast =()
-        optout = []
-        length=len(opt)
-        for i, s in enumerate(opt):
-            if s != last:
-                match = False
-                if last != () and lastlast != ():
-                    lastep = endpoints[last]
-                    lastlastep = endpoints[lastlast]
-                    sep = endpoints[s]
-                    for j in lastlastep:
-                        if lastep[0]== j:
-                            for k in sep:
-                                if lastep[1] == k:
-                                    match = True
-                        elif lastep[1]== j:
-                            for k in sep:
-                                if lastep[0] == k:
-                                    match = True
-                elif last != ():
-                    sep = endpoints[s]
-                    lastep = endpoints[last]
-                    for k in sep:
-                        if lastep[1] == k or lastep[0] == k:
-                            match = True
-                if match:
-                    optout.append(last)
-                if i == len(opt)-1:
-                    optout.append(s)
-            lastlast = last
-            last = s
-        opt = optout
-    return opt
+    last =()
+    lastlast =()
+    optout = []
+    for s in opt:
+        if s != last:
+            match = False
+            if last != () and lastlast != ():
+                lastep = endpoints[last]
+                lastlastep = endpoints[lastlast]
+                sep = endpoints[s]
+                for j in lastlastep:
+                    if lastep[0]== j:
+                        for k in sep:
+                            if lastep[1] == k:
+                                match = True
+                    elif lastep[1]== j:
+                        for k in sep:
+                            if lastep[0] == k:
+                                match = True
+            elif last != ():
+                sep = endpoints[s]
+                lastep = endpoints[last]
+                for k in sep:
+                    if lastep[1] == k or lastep[0] == k:
+                        match = True
+            if match:
+                optout.append(last)
+            if s == opt[-1]:
+                #print "add final segment:"+str(s)
+                optout.append(s)
+        lastlast = last
+        last = s
+    print "final length: "+str(len(optout))
+    return optout
 
 
 
@@ -272,8 +270,6 @@ def getSegmentCandidates(point, segments, decayConstantEu, maxdist=50):
     p = point.firstPoint #get the coordinates of the point geometry
     #print "Neighbors of point "+str(p.X) +' '+ str(p.Y)+" : "
     #Select all segments within max distance
-    arcpy.Delete_management('segments_lyr')
-    arcpy.MakeFeatureLayer_management(segments, 'segments_lyr')
     arcpy.SelectLayerByLocation_management ("segments_lyr", "WITHIN_A_DISTANCE", point, maxdist)
     candidates = {}
     #Go through these, compute distances, probabilities and store them as candidates
@@ -441,6 +437,9 @@ def getSegmentInfo(segments):
         del row
         del cursor
         print "Number of segments: "+ str(len(endpoints))
+        #prepare segment layer for fast search
+        arcpy.Delete_management('segments_lyr')
+        arcpy.MakeFeatureLayer_management(segments, 'segments_lyr')
         return (endpoints,segmentlengths)
     else:
         print "segment file does not exist!"
@@ -449,15 +448,15 @@ def getSegmentInfo(segments):
 if __name__ == '__main__':
 
 ##    #Test using the shipped data example
-    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
-    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
-    #outputs testTrack_path.shp
-    exportPath(opt, 'testTrack.shp')
-
-##    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
-##    opt = mapMatch('Track293162.shp', 'Road_293162.shp', 300, 10, 100)
+##    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
+##    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
 ##    #outputs testTrack_path.shp
-##    exportPath(opt, 'Track293162.shp')
+##    exportPath(opt, 'testTrack.shp')
+
+    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
+    opt = mapMatch('Track293162.shp', 'Road_2931_corr.shp', 300, 10, 100)
+    #outputs testTrack_path.shp
+    exportPath(opt, 'Track293162.shp')
 
 
 ##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
