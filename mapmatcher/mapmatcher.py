@@ -39,6 +39,7 @@ try:
     import arcpy
     arcpy.env.overwriteOutput = True
     import networkx as nx
+    import time
 
 except ImportError:
     print "Error: missing one of the libraries (arcpy, networkx)"
@@ -46,7 +47,7 @@ except ImportError:
 
 
 
-def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDist = 50):
+def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDist = 50, addfullpath = True):
     """
     The main method. Based on the Viterbi algorithm for Hidden Markov models,
     see https://en.wikipedia.org/wiki/Viterbi_algorithm.
@@ -59,6 +60,7 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
         @param decayConstantEu (optional) = the Euclidean distance (in meter) after which the match probability falls under 0.34 (exponential decay). (note this is the inverse of lambda).
         This depends on the positional error of the track points (how far can points deviate from their true position?)
         @param maxDist (optional) = the Euclidean distance threshold (in meter) for taking into account segments candidates.
+        @param addfullpath (optional, True or False) = whether a contiguous full segment path should be outputted. If not, a 1-to-1 list of segments matching each track point is outputted.
 
     note: depending on the type of movement, optional parameters need to be fine tuned to get optimal results.
     """
@@ -66,6 +68,9 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
     decayconstantNet = float(decayconstantNet)
     decayConstantEu = float(decayConstantEu)
     maxDist= float(maxDist)
+
+    #gest start time
+    start_time = time.time()
 
     #this array stores, for each point in a track, probability distributions over segments, together with the (most probable) predecessor segment taking into account a network distance
     V = [{}]
@@ -117,8 +122,8 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
             V[t][s]["prob"]=V[t][s]["prob"]/maxv
 
 
-
-
+    intertime1 = time.time()
+    print("--- Viterbi forward: %s seconds ---" % (intertime1 - start_time))
     #print V
 
     #opt is the result: a list of (matched) segments [s1, s2, s3,...] in the exact order of the point track: [p1, p2, p3,...]
@@ -148,16 +153,51 @@ def mapMatch(track, segments, decayconstantNet = 30, decayConstantEu = 10, maxDi
         #Insert the previous segment
         opt.insert(0, V[t + 1][previous]["prev"])
         previous = V[t + 1][previous]["prev"]
+    intertime2 = time.time()
+    print("--- Viterbi backtracking: %s seconds ---" % (intertime2 - intertime1))
 
-    #Clean the path (remove double segments and crossings
+    #Clean the path (remove double segments and crossings) (only in full path option)
     print "path length before cleaning :" +str(len(opt))
     opt = cleanPath(opt, endpoints)
+    intertime3 = time.time()
+    print("--- Path cleaning: %s seconds ---" % (intertime3 - intertime2))
+    print "final length: "+str(len(opt))
     pointstr= [str(g.firstPoint.X)+' '+str(g.firstPoint.Y) for g in points]
     optstr= [str(i) for i in opt]
     print 'The path for points ['+' '.join(pointstr)+'] is: '
     print '[' + ' '.join(optstr) + '] with highest probability of %s' % max_prob
 
+    #If only a single segment candidate should be returned for each point:
+    if addfullpath == False:
+        opt = getpointMatches(points,opt)
+        optstr= [str(i) for i in opt]
+        print "Individual point matches: "+'[' + ' '.join(optstr) + ']'
+        intertime4 = time.time()
+        print("--- Picking point matches: %s seconds ---" % (intertime4 - intertime3))
+
     return opt
+
+#Fishes out a 1-to-1 list of path segments nearest to the list of points in the track (not contiguous, may contain repeated segments)
+def getpointMatches(points, path):
+    qr =  '"OBJECTID" IN ' +str(tuple(path))
+    arcpy.SelectLayerByAttribute_management('segments_lyr',"NEW_SELECTION", qr)
+    opta = []
+    for point in points:
+        sdist = 100000
+        candidate = ''
+        cursor = arcpy.da.SearchCursor('segments_lyr', ["OBJECTID", "SHAPE@"])
+        for row in cursor:
+            #compute the spatial distance
+            dist = point.distanceTo(row[1])
+            if dist <sdist:
+                sdist=dist
+                candidate = row[0]
+        opta.append(candidate)
+    del cursor
+    #print str(candidates)
+    return opta
+
+
 
 def simplisticMatch(track, segments, maxDist = 50):
     maxDist= float(maxDist)
@@ -207,16 +247,23 @@ def cleanPath(opt, endpoints):
                 optout.append(s)
         lastlast = last
         last = s
-    print "final length: "+str(len(optout))
+    #print "final length: "+str(len(optout))
     return optout
 
+def getUniqueList(my_list):
+    from collections import OrderedDict
+    from itertools import izip, repeat
 
+    unique_list = list(OrderedDict(izip(my_list, repeat(None))))
+    return unique_list
 
 
 def exportPath(opt, trackname):
     """
     This exports the list of segments into a shapefile, a subset of the loaded segment file, including all attributes
     """
+    start_time = time.time()
+    opt=getUniqueList(opt)
     qr =  '"OBJECTID" IN ' +str(tuple(opt))
     outname = (os.path.splitext(os.path.basename(trackname))[0][:9])+'_pth'
     arcpy.SelectLayerByAttribute_management('segments_lyr',"NEW_SELECTION", qr)
@@ -224,6 +271,7 @@ def exportPath(opt, trackname):
         if arcpy.Exists(outname):
             arcpy.Delete_management(outname)
         arcpy.FeatureClassToFeatureClass_conversion('segments_lyr', arcpy.env.workspace, outname)
+        print("--- export: %s seconds ---" % (time.time() - start_time))
     except Exception:
         e = sys.exc_info()[1]
         print(e.args[0])
@@ -287,9 +335,6 @@ def getSegmentCandidates(point, segments, decayConstantEu, maxdist=50):
     return candidates
 
 def getClosestSegment(point, segments, maxdist):
-    p = point.firstPoint #get the coordinates of the point geometry
-    #print "Neighbors of point "+str(p.X) +' '+ str(p.Y)+" : "
-    #Select all segments within max distance
     arcpy.Delete_management('segments_lyr')
     arcpy.MakeFeatureLayer_management(segments, 'segments_lyr')
     arcpy.SelectLayerByLocation_management ("segments_lyr", "WITHIN_A_DISTANCE", point, maxdist)
@@ -360,7 +405,7 @@ def getNetworkTransP(s1, s2, graph, endpoints, segmentlengths, pathnodes, decayc
                     dist = 5
         else:
                 try:
-                    #Compute a shortes path (using segment length) on graph where segment endpoints are nodes and segments are (undirected) edges
+                    #Compute a shortest path (using segment length) on graph where segment endpoints are nodes and segments are (undirected) edges
                     if graph.has_node(s1_point) and graph.has_node(s2_point):
                         dist = nx.shortest_path_length(graph, s1_point, s2_point, weight='length')
                         path = nx.shortest_path(graph, s1_point, s2_point, weight='length')
@@ -383,6 +428,7 @@ def getNetworkTransP(s1, s2, graph, endpoints, segmentlengths, pathnodes, decayc
     return (getNDProbability(dist,decayconstantNet),subpath,s2_point)
 
 def pointdistance(p1, p2):
+    #This Eucl distance can only be used for projected coordinate systems
     dist = sqrt((p1[0]-p2[0])**2 +(p1[1]-p2[1])**2)
     return dist
 
@@ -454,7 +500,7 @@ if __name__ == '__main__':
 ##    exportPath(opt, 'testTrack.shp')
 
     arcpy.env.workspace = 'C:\\Temp\\Road_293162'
-    opt = mapMatch('Track293162.shp', 'Road_2931_corr.shp', 300, 10, 100)
+    opt = mapMatch('Track293162.shp', 'Road_2931_corr.shp', 300, 10, 50)
     #outputs testTrack_path.shp
     exportPath(opt, 'Track293162.shp')
 
