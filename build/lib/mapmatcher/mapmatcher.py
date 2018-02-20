@@ -415,7 +415,7 @@ def getNetworkTransP(s1, s2, graph, endpoints, segmentlengths, pathnodes, decayc
                         subpath = []
                         # get object ids for path edges
                         for e in path_edges:
-                            oid = graph.edge[e[0]][e[1]]["OBJECTID"]
+                            oid = graph[e[0]][e[1]]["OBJECTID"]
                             subpath.append(oid)
                         #print "oid path:"+str(subpath)
                     else:
@@ -462,9 +462,9 @@ def getNetworkGraph(segments,segmentlengths):
         sg = list(nx.connected_component_subgraphs(g.to_undirected()))[0]
         print "graph size (excluding unconnected parts): "+str(len(g))
         # Get the length for each road segment and append it as an attribute to the edges in the graph.
-        for n0, n1 in sg.edges_iter():
+        for n0, n1 in sg.edges():
             oid = sg[n0][n1]["OBJECTID"]
-            sg.edge[n0][n1]['length'] = segmentlengths[oid]
+            sg[n0][n1]['length'] = segmentlengths[oid]
         return sg
     else:
         print "network file not found on path: "+path
@@ -494,15 +494,15 @@ def getSegmentInfo(segments):
 if __name__ == '__main__':
 
 ##    #Test using the shipped data example
-##    arcpy.env.workspace = 'C:\\Users\\simon\\Documents\\GitHub\\mapmatching'
-##    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
-##    #outputs testTrack_path.shp
-##    exportPath(opt, 'testTrack.shp')
-
-    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
-    opt = mapMatch('Track293162.shp', 'Road_2931_corr.shp', 300, 10, 50)
+    arcpy.env.workspace = 'C:\\Users\\schei008\\Documents\\Github\\mapmatching'
+    opt = mapMatch('testTrack.shp', 'testSegments.shp', 25, 10, 50)
     #outputs testTrack_path.shp
-    exportPath(opt, 'Track293162.shp')
+    exportPath(opt, 'testTrack.shp')
+
+##    arcpy.env.workspace = 'C:\\Temp\\Road_293162'
+##    opt = mapMatch('Track293162.shp', 'Road_2931_corr.shp', 300, 10, 50)
+##    #outputs testTrack_path.shp
+##    exportPath(opt, 'Track293162.shp')
 
 
 ##    arcpy.env.workspace = 'C:/Users/simon/Documents/GitHub/mapmatching/'
